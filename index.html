@@ -1,1 +1,471 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Adaptive Habitability Applet</title>
+  <!-- Load Plotly from CDN -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .slider-container {
+      margin-bottom: 10px;
+    }
+    .slider-label {
+      display: inline-block;
+      width: 250px;
+    }
+    #controls {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 20px;
+    }
+    .plot-container {
+      margin-bottom: 40px;
+    }
+  </style>
+</head>
+<body>
 
+<h1>Adaptive Habitability Applet</h1>
+<p>
+This interactive applet demonstrates two models for adaptive habitability – a multiplicative and an additive approach. Adjust the sliders below to change key parameters in real time. The following graphs are displayed:
+</p>
+<ul>
+  <li><strong>Population & Trait Dynamics:</strong> Population size, environmental optimum, and organism trait over time.</li>
+  <li><strong>Trait Lag Dynamics:</strong> The difference between the environmental optimum and organism trait with a critical threshold line.</li>
+  <li><strong>Transformed Overlap Dynamics:</strong> The normalized and transformed overlap between the environment and organism with a 0 threshold.</li>
+  <li><strong>Smooth Adaptation Factor:</strong> The adaptation factor A(t) with its threshold.</li>
+  <li><strong>Overall Modulation Factor:</strong> The net modulation factor M(t) for the selected model.</li>
+</ul>
+
+<div id="controls">
+  <!-- Model Type -->
+  <div class="slider-container">
+    <span class="slider-label">Model Type:</span>
+    <label><input type="radio" name="modelType" value="multiplicative" checked> Multiplicative</label>
+    <label><input type="radio" name="modelType" value="additive"> Additive</label>
+  </div>
+  <!-- Environmental Parameters -->
+  <div class="slider-container">
+    <span class="slider-label">Switch Time (when environment changes):</span>
+    <input id="switchTime" type="range" min="0" max="200" step="5" value="50" oninput="updateSimulation()">
+    <span id="switchTimeVal">50</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Initial Environmental Optimum:</span>
+    <input id="muFInit" type="range" min="0" max="50" step="1" value="25" oninput="updateSimulation()">
+    <span id="muFInitVal">25</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Environmental Optimum After Shift:</span>
+    <input id="muFShift" type="range" min="0" max="60" step="1" value="35" oninput="updateSimulation()">
+    <span id="muFShiftVal">35</span>
+  </div>
+  <!-- Organism Parameters -->
+  <div class="slider-container">
+    <span class="slider-label">Initial Organism Trait:</span>
+    <input id="muGInit" type="range" min="0" max="50" step="1" value="25" oninput="updateSimulation()">
+    <span id="muGInitVal">25</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Organism Trait Variability (σ<sub>g</sub>):</span>
+    <input id="sigmaG" type="range" min="0.1" max="5" step="0.1" value="0.5" oninput="updateSimulation()">
+    <span id="sigmaGVal">0.5</span>
+  </div>
+  <!-- Critical Thresholds -->
+  <div class="slider-container">
+    <span class="slider-label">Critical Overlap Threshold (O<sub>crit</sub>):</span>
+    <input id="Ocrit" type="range" min="0" max="1" step="0.05" value="0.9" oninput="updateSimulation()">
+    <span id="OcritVal">0.9</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Critical Trait Lag (Δ<sub>crit</sub>):</span>
+    <input id="DeltaCrit" type="range" min="0" max="20" step="1" value="5" oninput="updateSimulation()">
+    <span id="DeltaCritVal">5</span>
+  </div>
+  <!-- Additive Model Specific -->
+  <div class="slider-container">
+    <span class="slider-label">Additive Offset:</span>
+    <input id="offset" type="range" min="0" max="10" step="0.1" value="3" oninput="updateSimulation()">
+    <span id="offsetVal">3</span>
+  </div>
+  <!-- Growth Parameters -->
+  <div class="slider-container">
+    <span class="slider-label">Maximum Growth Rate (μ<sub>max</sub>):</span>
+    <input id="muMax" type="range" min="0" max="2" step="0.05" value="0.5" oninput="updateSimulation()">
+    <span id="muMaxVal">0.5</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Resource Level (S):</span>
+    <input id="S" type="range" min="0.1" max="10" step="0.1" value="1" oninput="updateSimulation()">
+    <span id="SVal">1</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Carrying Capacity (K):</span>
+    <input id="K" type="range" min="10" max="1000" step="10" value="100" oninput="updateSimulation()">
+    <span id="KVal">100</span>
+  </div>
+  <!-- Simulation Time -->
+  <div class="slider-container">
+    <span class="slider-label">Total Simulation Time (T<sub>end</sub>):</span>
+    <input id="Tend" type="range" min="50" max="500" step="10" value="150" oninput="updateSimulation()">
+    <span id="TendVal">150</span>
+  </div>
+  <div class="slider-container">
+    <span class="slider-label">Time Step (dt):</span>
+    <input id="dt" type="range" min="0.01" max="1.0" step="0.01" value="0.1" oninput="updateSimulation()">
+    <span id="dtVal">0.1</span>
+  </div>
+</div>
+
+<hr>
+
+<!-- Plot Divs -->
+<div id="popPlot" class="plot-container"></div>
+<div id="traitPlot" class="plot-container"></div>
+<div id="lagPlot" class="plot-container"></div>
+<div id="overlapPlot" class="plot-container"></div>
+<div id="adaptPlot" class="plot-container"></div>
+<div id="modulationPlot" class="plot-container"></div>
+
+<script>
+  // Utility: update slider label text
+  function updateSliderLabel(id, val) {
+    document.getElementById(id).textContent = val;
+  }
+  
+  // Update simulation on slider input
+  function updateSimulation() {
+    // Read parameters from controls
+    let modelType = document.querySelector('input[name="modelType"]:checked').value;
+    let tSwitch = parseFloat(document.getElementById("switchTime").value);
+    let muFInit = parseFloat(document.getElementById("muFInit").value);
+    let muFShift = parseFloat(document.getElementById("muFShift").value);
+    let muGInit = parseFloat(document.getElementById("muGInit").value);
+    let sigmaG = parseFloat(document.getElementById("sigmaG").value);
+    let Ocrit = parseFloat(document.getElementById("Ocrit").value);
+    let DeltaCrit = parseFloat(document.getElementById("DeltaCrit").value);
+    let offset = parseFloat(document.getElementById("offset").value);
+    let muMax = parseFloat(document.getElementById("muMax").value);
+    let S = parseFloat(document.getElementById("S").value);
+    let K = parseFloat(document.getElementById("K").value);
+    let T_end = parseFloat(document.getElementById("Tend").value);
+    let dt = parseFloat(document.getElementById("dt").value);
+    
+    // Fixed parameters for simplicity
+    let etaCrit = 1.0;      // Fixed
+    let DeltaMax = 10.0;    // Fixed
+    let epsilon = 0.5;      // Fixed
+    let KS = 0.5;           // Fixed
+    
+    // Pack parameters into an object
+    let params = { tSwitch, muFInit, muFShift, muGInit, sigmaG, Ocrit,
+                   etaCrit, DeltaCrit, epsilon, DeltaMax, muMax, S, KS, K, T_end, dt, offset };
+    
+    // Run simulation
+    let result = simulate(params, modelType);
+    
+    // Plot results using Plotly
+    plotResults(result, modelType);
+  }
+  
+  // Model Functions -----------------------------------------------------------
+  function envConditions(t, tSwitch, muFInit, muFShift) {
+    let mu_f = (t < tSwitch) ? muFInit : muFShift;
+    let sigma_f = 1.0;
+    return [mu_f, sigma_f];
+  }
+  
+  function normalizedOverlap(mu_f, sigma_f, mu_g, sigma_g) {
+    let denom = 2 * (sigma_f * sigma_f + sigma_g * sigma_g);
+    return Math.exp(-Math.pow(mu_f - mu_g, 2) / denom);
+  }
+  
+  function transformedOverlap(O_norm, Ocrit) {
+    return (O_norm - Ocrit) / (1 - Ocrit);
+  }
+  
+  function envVolatility(t, tSwitch) {
+    return 0.0;  // For the step-change model, assume zero volatility
+  }
+  
+  function transformedVolatility(eta, etaCrit) {
+    return 1 - (eta / etaCrit);
+  }
+  
+  function traitLag(mu_f, mu_g) {
+    return mu_f - mu_g;
+  }
+  
+  function adaptationFunction(Delta, DeltaMax) {
+    return -Delta / DeltaMax;
+  }
+  
+  function smoothAdaptation(Delta, DeltaCrit, epsilon) {
+    return Math.tanh((DeltaCrit - Math.abs(Delta)) / epsilon);
+  }
+  
+  // Multiplicative modulation factor
+  function multiplicativeModulation(O_tilde, eta_tilde, A) {
+    return O_tilde * eta_tilde * A;
+  }
+  
+  // Additive modulation factor
+  function additiveModulation(O_tilde, eta_tilde, A, offset) {
+    return O_tilde + eta_tilde + A - offset;
+  }
+  
+  // Differential Equations ----------------------------------------------------
+  function dNdt(t, N, mu_g, params, modelType) {
+    let [tSwitch, muFInit, muFShift, , sigmaG, Ocrit, etaCrit, DeltaCrit, epsilon, DeltaMax, muMax, S, KS, K, T_end, dt, offset] = 
+        [params.tSwitch, params.muFInit, params.muFShift, params.muGInit, params.sigmaG, params.Ocrit, params.etaCrit, params.DeltaCrit, params.epsilon, params.DeltaMax, params.muMax, params.S, params.KS, params.K, params.T_end, params.dt, params.offset];
+    
+    let [mu_f, sigma_f] = envConditions(t, tSwitch, muFInit, muFShift);
+    let O_norm = normalizedOverlap(mu_f, sigma_f, mu_g, sigmaG);
+    let O_tilde = transformedOverlap(O_norm, Ocrit);
+    let eta = envVolatility(t, tSwitch);
+    let eta_tilde = transformedVolatility(eta, etaCrit);
+    let Delta = traitLag(mu_f, mu_g);
+    let A = smoothAdaptation(Delta, DeltaCrit, epsilon);
+    
+    let M;
+    if (modelType === "multiplicative") {
+      M = multiplicativeModulation(O_tilde, eta_tilde, A);
+    } else {
+      M = additiveModulation(O_tilde, eta_tilde, A, offset);
+    }
+    
+    let resourceTerm = S / (KS + S);
+    let logisticTerm = 1 - (N / K);
+    return muMax * M * resourceTerm * N * logisticTerm;
+  }
+  
+  function dmuGdt(t, mu_g, params) {
+    let [tSwitch, muFInit, muFShift, , , , , , epsilon, DeltaMax, , , , , , dt, offset] = 
+        [params.tSwitch, params.muFInit, params.muFShift, params.muGInit, params.sigmaG, params.Ocrit, params.etaCrit, params.DeltaCrit, params.epsilon, params.DeltaMax, params.muMax, params.S, params.KS, params.K, params.T_end, params.dt, params.offset];
+    let [mu_f, sigma_f] = envConditions(t, tSwitch, muFInit, muFShift);
+    let Delta = mu_f - mu_g;
+    let vAdapt = 0.2;
+    return vAdapt * adaptationFunction(Delta, DeltaMax);
+  }
+  
+  // Euler integration simulation
+  function simulate(params, modelType) {
+    let steps = Math.floor(params.T_end / params.dt);
+    let tArr = [];
+    let NArr = [];
+    let muGArr = [];
+    let O_tilde_arr = [];
+    let eta_tilde_arr = [];
+    let A_arr = [];
+    let M_arr = [];
+    let Delta_arr = [];
+    let muFArr = [];
+    
+    // Initial conditions
+    NArr[0] = 10.0;
+    muGArr[0] = params.muGInit;
+    
+    for (let i = 1; i < steps; i++) {
+      let t = (i - 1) * params.dt;
+      tArr.push(t);
+      
+      // Update environment, compute factors
+      let [mu_f, sigma_f] = envConditions(t, params.tSwitch, params.muFInit, params.muFShift);
+      muFArr.push(mu_f);
+      let O_norm = normalizedOverlap(mu_f, sigma_f, muGArr[i-1], params.sigmaG);
+      let O_tilde = transformedOverlap(O_norm, params.Ocrit);
+      O_tilde_arr.push(O_tilde);
+      let eta = envVolatility(t, params.tSwitch);
+      let eta_tilde = transformedVolatility(eta, params.etaCrit);
+      eta_tilde_arr.push(eta_tilde);
+      let Delta = traitLag(mu_f, muGArr[i-1]);
+      Delta_arr.push(Delta);
+      let A = smoothAdaptation(Delta, params.DeltaCrit, params.epsilon);
+      A_arr.push(A);
+      
+      let M;
+      if (modelType === "multiplicative") {
+        M = multiplicativeModulation(O_tilde, eta_tilde, A);
+      } else {
+        M = additiveModulation(O_tilde, eta_tilde, A, params.offset);
+      }
+      M_arr.push(M);
+      
+      // Update population using Euler integration
+      let dN = dNdt(t, NArr[i-1], muGArr[i-1], params, modelType);
+      NArr[i] = NArr[i-1] + dN * params.dt;
+      if (NArr[i] < 0) NArr[i] = 0;
+      
+      // Update organism trait
+      let dmuG = dmuGdt(t, muGArr[i-1], params);
+      muGArr[i] = muGArr[i-1] + dmuG * params.dt;
+    }
+    tArr.push((steps - 1) * params.dt);
+    return { t: tArr, N: NArr, muG: muGArr, muF: muFArr, Delta: Delta_arr, O_tilde: O_tilde_arr, eta_tilde: eta_tilde_arr, A: A_arr, M: M_arr };
+  }
+  
+  // Plot results with Plotly
+  function plotResults(result, modelType) {
+    // Plot Population & Trait Dynamics
+    let tracePop = {
+      x: result.t,
+      y: result.N,
+      mode: 'lines',
+      name: 'Population'
+    };
+    let traceMuF = {
+      x: result.t,
+      y: result.muF,
+      mode: 'lines',
+      name: 'Env. Optimum (μ_f)',
+      line: { dash: 'dash', color: 'red' }
+    };
+    let traceMuG = {
+      x: result.t,
+      y: result.muG,
+      mode: 'lines',
+      name: 'Organism Trait (μ_g)',
+      line: { color: 'green' }
+    };
+    let layout1 = {
+      title: 'Population & Trait Dynamics (' + modelType + ' Model)',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Value' }
+    };
+    Plotly.newPlot('popPlot', [tracePop, traceMuF, traceMuG], layout1);
+    
+    // Plot Trait Lag with Critical Threshold
+    let traceLag = {
+      x: result.t,
+      y: result.Delta,
+      mode: 'lines',
+      name: 'Trait Lag (Δ)'
+    };
+    let traceDeltaCrit = {
+      x: [result.t[0], result.t[result.t.length - 1]],
+      y: [parseFloat(document.getElementById("DeltaCrit").value), parseFloat(document.getElementById("DeltaCrit").value)],
+      mode: 'lines',
+      name: 'Critical Trait Lag (Δ_crit)',
+      line: { dash: 'dash', color: 'black' }
+    };
+    let layout2 = {
+      title: 'Trait Lag Dynamics',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Δ(t)' }
+    };
+    Plotly.newPlot('lagPlot', [traceLag, traceDeltaCrit], layout2);
+    
+    // Plot Transformed Overlap with Neutral Level (0)
+    let traceOtilde = {
+      x: result.t,
+      y: result.O_tilde,
+      mode: 'lines',
+      name: 'Transformed Overlap (Ō)'
+    };
+    let layout3 = {
+      title: 'Transformed Overlap Dynamics',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Ō(t)' },
+      shapes: [{
+        type: 'line',
+        x0: result.t[0],
+        x1: result.t[result.t.length - 1],
+        y0: 0,
+        y1: 0,
+        line: { dash: 'dash', color: 'black' }
+      }]
+    };
+    Plotly.newPlot('overlapPlot', [traceOtilde], layout3);
+    
+    // Plot Smooth Adaptation Factor
+    let traceA = {
+      x: result.t,
+      y: result.A,
+      mode: 'lines',
+      name: 'Smooth Adaptation Factor (A)'
+    };
+    let layout4 = {
+      title: 'Smooth Adaptation Factor',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'A(t)' },
+      shapes: [{
+        type: 'line',
+        x0: result.t[0],
+        x1: result.t[result.t.length - 1],
+        y0: 0,
+        y1: 0,
+        line: { dash: 'dash', color: 'black' }
+      }]
+    };
+    Plotly.newPlot('adaptPlot', [traceA], layout4);
+    
+    // Plot Overall Modulation Factor M(t)
+    let traceM = {
+      x: result.t,
+      y: result.M,
+      mode: 'lines',
+      name: 'Overall Modulation Factor, M(t)'
+    };
+    let layout5 = {
+      title: 'Overall Modulation Factor (' + modelType + ' Model)',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'M(t)' },
+      shapes: [{
+        type: 'line',
+        x0: result.t[0],
+        x1: result.t[result.t.length - 1],
+        y0: 0,
+        y1: 0,
+        line: { dash: 'dash', color: 'black' }
+      }]
+    };
+    Plotly.newPlot('modulationPlot', [traceM], layout5);
+  }
+  
+  // Interactive simulation: update on slider changes
+  function updateSimulation() {
+    // Read slider values
+    let modelType = document.querySelector('input[name="modelType"]:checked').value;
+    let params = {
+      tSwitch: parseFloat(document.getElementById("switchTime").value),
+      muFInit: parseFloat(document.getElementById("muFInit").value),
+      muFShift: parseFloat(document.getElementById("muFShift").value),
+      muGInit: parseFloat(document.getElementById("muGInit").value),
+      sigmaG: parseFloat(document.getElementById("sigmaG").value),
+      Ocrit: parseFloat(document.getElementById("Ocrit").value),
+      etaCrit: 1.0, // fixed
+      DeltaCrit: parseFloat(document.getElementById("DeltaCrit").value),
+      epsilon: 0.5, // fixed
+      DeltaMax: 10.0, // fixed
+      muMax: parseFloat(document.getElementById("muMax").value),
+      S: parseFloat(document.getElementById("S").value),
+      KS: 0.5,      // fixed
+      K: parseFloat(document.getElementById("K").value),
+      T_end: parseFloat(document.getElementById("Tend").value),
+      dt: parseFloat(document.getElementById("dt").value),
+      offset: parseFloat(document.getElementById("offset").value)
+    };
+    
+    // Update slider display values
+    let sliderIds = ["switchTime", "muFInit", "muFShift", "muGInit", "sigmaG", "Ocrit", "DeltaCrit", "offset", "muMax", "S", "K", "Tend", "dt"];
+    sliderIds.forEach(id => {
+      document.getElementById(id + "Val").textContent = document.getElementById(id).value;
+    });
+    
+    let result = simulate(params, modelType);
+    plotResults(result, modelType);
+  }
+  
+  // Run simulation on page load
+  updateSimulation();
+</script>
+
+</body>
+</html>
